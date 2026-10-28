@@ -1,0 +1,22 @@
+# 构建产物
+*.class
+*.dex
+*.apk.bak
+build/
+ahbuild/
+
+# 编辑器
+.vscode/
+.idea/
+*.iml
+
+# 临时
+*.log
+*.tmp
+_t.js
+*.bak
+*.bak_v*
+
+# 系统
+Thumbs.db
+.DS_Store
