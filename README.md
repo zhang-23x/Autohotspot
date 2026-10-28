@@ -9,6 +9,18 @@
 
 ---
 
+## 下载
+
+| 文件 | 说明 |
+|---|---|
+| [**autohotspot-v62-source-20251028.zip**](../../raw/main/autohotspot-v62-source-20251028.zip) | 完整打包（源码 + APK + 构建脚本），165 KB，解压即用 |
+| [**apk/autohotspot-v62.apk**](apk/autohotspot-v62.apk) | 只要装到手机上，下这一个就行 |
+| [**source-v62/**](source-v62/) | 和 zip 内容相同的散文件，想在线看代码点这里 |
+
+> 所有文件都在本仓库里，随时可下，不依赖外部网盘。
+
+---
+
 ## 一、适用机型
 
 ### 完全支持（已实测）
