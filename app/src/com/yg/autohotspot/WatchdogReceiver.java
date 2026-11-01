@@ -69,6 +69,14 @@ public class WatchdogReceiver extends BroadcastReceiver {
         } catch (Throwable t) {
             Log.w(HotspotService.TAG, "watchdog start panel failed: " + t);
         }
+        // v63：开机那串延迟重试（60/150/300/600/1200 秒）也走这条 tick。
+        // 冷启动后系统要很久才把无障碍绑上，这里每次 tick 都补一次，
+        // 见到热点已经在、或者用户手动关过，poke 会自己跳过。
+        try {
+            HotspotService.poke(c);
+        } catch (Throwable t) {
+            Log.w(HotspotService.TAG, "watchdog poke failed: " + t);
+        }
         try {
             PanelService.armWatchdog(c);
         } catch (Throwable ignored) {

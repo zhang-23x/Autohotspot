@@ -87,6 +87,25 @@ public class HotspotService extends AccessibilityService {
     /** 当前作业是不是「把热点关掉」（定时关热点用），决定面板里要不要反向点磁贴 */
     private boolean offMode = false;
 
+    /** v64: 开机/看门狗用的幂等促发。无障碍还没绑上时只记一笔，
+     *  onServiceConnected 时补跑，不再像 trigger() 那样直接丢掉。 */
+    static volatile boolean pendingPoke = false;
+
+    static void poke(android.content.Context c) {
+        final HotspotService s = INSTANCE;
+        if (s == null || s.h == null) {
+            pendingPoke = true;
+            Log.i(TAG, "poke: service not connected yet, queued");
+            return;
+        }
+        if (s.running) return;
+        if (isTetherUp()) { pendingPoke = false; return; }
+        pendingPoke = false;
+        s.h.post(new Runnable() {
+            @Override public void run() { s.runJob("poke"); }
+        });
+    }
+
     static void trigger() {
         final HotspotService s = INSTANCE;
         if (s != null && s.h != null) {
@@ -143,7 +162,15 @@ public class HotspotService extends AccessibilityService {
         try { PhoneServer.start(this); } catch (Throwable e) { Log.e(TAG, "phone server start failed: " + e); }
         if (h == null) h = new Handler(Looper.getMainLooper());
         h.postDelayed(new Runnable() {
-            @Override public void run() { runJob("boot/connect"); }
+            @Override public void run() {
+                if (pendingPoke) {
+                    pendingPoke = false;
+                    Log.i(TAG, "poke: running queued boot job after connect");
+                    runJob("boot/pending");
+                } else {
+                    runJob("boot/connect");
+                }
+            }
         }, 6000L);
 
         // 看门狗用独立 Handler：finish() 清 job 的回调不会把它一起清掉
@@ -841,6 +868,18 @@ public class HotspotService extends AccessibilityService {
         Log.w(TAG, "settings: 重试 " + settingsMiss + " 次仍没找到开关或入口，放弃");
         finish(false);
     }
+    /** v64: 常驻通知标题含「热点」，冷启动时通知先于磁贴出现，
+     *  search 会把自家通知当成热点磁贴点掉，热点一次都开不起来。
+     *  凡自己包名的节点一律不作为点击目标。 */
+    private static boolean isOwnPackageNode(AccessibilityNodeInfo n) {
+        try {
+            CharSequence p = n.getPackageName();
+            return p != null && ApProfile.SELF_PKG.contentEquals(p);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
     private AccessibilityNodeInfo find(String needle) {
         try {
             List<AccessibilityWindowInfo> wins = getWindows();
@@ -860,11 +899,16 @@ public class HotspotService extends AccessibilityService {
 
     private AccessibilityNodeInfo search(AccessibilityNodeInfo n, String needle, int depth) {
         if (n == null || depth > 32) return null;
+        if (isOwnPackageNode(n)) return null;
         CharSequence t = n.getText();
         CharSequence d = n.getContentDescription();
         try {
-            if ((t != null && t.toString().contains(needle))
-                    || (d != null && d.toString().contains(needle))) {
+            String ts = t == null ? "" : t.toString();
+            String ds = d == null ? "" : d.toString();
+            // v65: 通知行（「xxx通知：yyy」）不是磁贴，直接跳过
+            if (UiFinder.isNotifText(ts) || UiFinder.isNotifText(ds)) {
+                // fall through to children
+            } else if (ts.contains(needle) || ds.contains(needle)) {
                 return n;
             }
             int c = n.getChildCount();

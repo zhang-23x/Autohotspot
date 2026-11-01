@@ -54,6 +54,13 @@ public class UiFinder {
 
     // ------------------------------------------------------------ 词表
 
+    /** v65: 华为/荣耀的通知行形如「AutoHotspot通知：面板运行中」。
+     *  这种行绝不能被当成热点磁贴，也不能被学进词表。 */
+    public static boolean isNotifText(String s) {
+        if (s == null) return false;
+        return s.indexOf("通知：") >= 0 || s.indexOf("通知:") >= 0;
+    }
+
     /** 读这台机器上学到的词（顺序稳定，最新的在前） */
     public static String[] learned(Context c, int type) {
         SharedPreferences sp = prefs(c);
@@ -67,6 +74,7 @@ public class UiFinder {
         if (word == null) return;
         String w = word.trim();
         if (w.length() == 0 || w.length() > 40) return;
+        if (isNotifText(w)) return;
         SharedPreferences sp = prefs(c);
         if (sp == null) return;
         StringBuilder sb = new StringBuilder(w).append("\n");
@@ -87,7 +95,7 @@ public class UiFinder {
         List<String> out = new ArrayList<String>();
         for (int i = 0; i < le.length; i++) {
             String s = le[i].trim();
-            if (s.length() > 0) out.add(s);
+            if (s.length() > 0 && !isNotifText(s)) out.add(s);
         }
         if (builtin != null) {
             for (int i = 0; i < builtin.length; i++) {
@@ -113,6 +121,9 @@ public class UiFinder {
      * type 决定额外权重：磁贴看「有没有开关状态」，输入框看「能不能编辑」。
      */
     public static int score(AccessibilityNodeInfo n, int type) {
+        // v66: 通知行（「xxx通知：yyy」）直接 0 分——它渲染在 SystemUI 进程里，
+        // 躲过包名过滤，会靠 isClickable 的基础分被当成热点磁贴点掉。
+        if (isNotifText(textOf(n))) return 0;
         if (n == null) return 0;
         String text = textOf(n);
         if (text.length() == 0) return 0;
@@ -170,6 +181,16 @@ public class UiFinder {
      * 扫整棵树的最高分节点。threshold 建议 55。
      * 返回 null 表示这一页没有像样的候选。
      */
+    /** v64: 自己的通知/页面不作为候选，否则「面板运行中」这类文案会被当成热点磁贴。 */
+    public static boolean isOwnNode(AccessibilityNodeInfo n) {
+        try {
+            CharSequence p = n.getPackageName();
+            return p != null && ApProfile.SELF_PKG.contentEquals(p);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
     public static AccessibilityNodeInfo best(AccessibilityNodeInfo root, int type, int threshold) {
         if (root == null) return null;
         List<AccessibilityNodeInfo> all = new ArrayList<AccessibilityNodeInfo>();
@@ -178,6 +199,8 @@ public class UiFinder {
         int bestScore = 0;
         for (int i = 0; i < all.size(); i++) {
             AccessibilityNodeInfo n = all.get(i);
+            if (isOwnNode(n)) continue;
+            if (isNotifText(textOf(n))) continue;
             int s = score(n, type);
             if (s > bestScore) {
                 bestScore = s;

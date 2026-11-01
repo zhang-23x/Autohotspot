@@ -19,6 +19,9 @@ import java.util.Enumeration;
  */
 public final class ApProfile {
 
+    /** v64: 自己的包名。搜节点时必须排除，否则常驻通知会被当成热点磁贴点掉。 */
+    public static final String SELF_PKG = "com.yg.autohotspot";
+
     private ApProfile() { }
 
     /* ------------------------------------------------------------ 关键词表 */

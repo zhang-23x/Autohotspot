@@ -1,0 +1,28 @@
+v66  2026-11-02 00:19
+
+【修复】开机自动开热点失效（用户反馈：没电后只能「音量+再充电」开机，开机后热点不自动开；控制台重启和定时重启却正常）
+
+根因
+  accessibility 搜索把本应用自己的常驻通知「AutoHotspot通知：面板运行中」当成了热点磁贴点掉。
+  该通知节点渲染在 SystemUI 进程里，getPackageName() 返回 com.android.systemui，
+  所以按包名排除（v64 的做法）根本拦不住；标题改短也没用，因为它是按控件特征被打分选中的。
+
+改动
+  UiFinder.java
+    + isNotifText(String)        拒绝含「通知：」或以「通知」开头的文本
+    + best()   里跳过通知行       if (isNotifText(textOf(n))) continue;
+    + score()  里通知行直接 0 分  if (isNotifText(textOf(n))) return 0;
+
+实测（adb reboot，等同「其它关机了再开机」）
+  36s  boot_completed
+       job start (boot)
+       tap hotspot tile (热点已开启)
+       verify: tile=热点已开启 ifaceUp=true -> true
+       === job finished, success=true ===
+  ip: wlan0 192.168.43.1/24
+
+沿革
+  v63  加 USER_PRESENT/SCREEN_ON 监听、directBootAware、AlarmManager 多重试（保留，仍有用）
+  v64  按包名排除自家节点        —— 无效（通知在 SystemUI 进程）
+  v65  按「通知：」文本排除      —— 只改了 search()，best() 打分路径仍会选中
+  v66  best() + score() 双保险   —— 生效

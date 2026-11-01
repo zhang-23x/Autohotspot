@@ -150,7 +150,7 @@ public class PanelService extends Service {
             Notification.Builder b = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                     ? new Notification.Builder(this, CHANNEL)
                     : new Notification.Builder(this);
-            b.setContentTitle("热点面板运行中")
+            b.setContentTitle("面板运行中")
                     .setContentText(ApProfile.hostPort() + " · 连上热点的设备都能访问")
                     .setSmallIcon(android.R.drawable.stat_sys_upload_done)
                     .setOngoing(true)
