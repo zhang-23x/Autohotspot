@@ -4,7 +4,7 @@
 
 不需要 root，不需要电脑常驻。手机自己跑一个 HTTP 服务（`192.168.43.1:8080`），连上热点的任何设备用浏览器就能打开控制台。
 
-> 当前版本：**v69**（versionCode 69）
+> 当前版本：**v70**（versionCode 70）
 > 实测机型：**华为 / 荣耀 TEL-AN00a（HONOR X10）**，Android 10 / EMUI 11
 
 ---
@@ -13,9 +13,9 @@
 
 | 文件 | 说明 |
 |---|---|
-| [**autohotspot-v69-source-20261102.zip**](../../raw/main/autohotspot-v69-source-20261102.zip) | 完整打包（源码 + APK + 构建脚本），185 KB，解压即用 |
-| [**apk/autohotspot-v69.apk**](apk/autohotspot-v69.apk) | 只要装到手机上，下这一个就行 |
-| [**source-v69/**](source-v69/) | 和 zip 内容相同的散文件，想在线看代码点这里 |
+| [**autohotspot-v70-source-20261102.zip**](../../raw/main/autohotspot-v70-source-20261102.zip) | 完整打包（源码 + APK + 构建脚本），187 KB，解压即用 |
+| [**apk/autohotspot-v70.apk**](apk/autohotspot-v70.apk) | 只要装到手机上，下这一个就行 |
+| [**source-v70/**](source-v70/) | 和 zip 内容相同的散文件，想在线看代码点这里 |
 
 > 所有文件都在本仓库里，随时可下，不依赖外部网盘。
 
@@ -105,7 +105,7 @@
 | 项 | 说明 |
 |---|---|
 | 安卓手机 | Android 8.0+（API 26），推荐华为/荣耀 |
-| APK | 本仓库 `apk/autohotspot-v69.apk` |
+| APK | 本仓库 `apk/autohotspot-v70.apk` |
 | 电脑 + 数据线 | **仅首次需要**，用来跑一条 adb 命令授予系统级权限 |
 | adb | [platform-tools](https://developer.android.com/studio/releases/platform-tools)，或用手机助手自带的 |
 
@@ -113,12 +113,12 @@
 
 **1. 安装 APK**
 
-把 `apk/autohotspot-v69.apk` 传到手机，点安装。系统会提示「未知来源」，允许即可。
+把 `apk/autohotspot-v70.apk` 传到手机，点安装。系统会提示「未知来源」，允许即可。
 
 或用 adb：
 
 ```bash
-adb install -r -t autohotspot-v69.apk
+adb install -r -t autohotspot-v70.apk
 ```
 
 > 华为/荣耀会弹「风险提示 → 继续安装」，点「继续安装」。
@@ -207,7 +207,7 @@ node chk58.js
 ```
 Autohotspot/
 ├── apk/
-│   └── autohotspot-v69.apk          已编译可安装包
+│   └── autohotspot-v70.apk          已编译可安装包
 ├── app/
 │   ├── AndroidManifest.xml
 │   ├── res/                          字符串、无障碍配置、设备管理员配置
@@ -234,7 +234,7 @@ Autohotspot/
 │   ├── chk58.js                      前端 JS 语法自检
 │   └── debug.keystore                测试签名（密码 android）
 └── docs/
-    └── 更新记录_v69.txt
+    └── 更新记录_v70.txt
 ```
 
 ---
@@ -253,6 +253,7 @@ Autohotspot/
 
 ## 七、版本
 
+- **v70** —— 新增蓝牙开关：总览页一行卡片，`/api/action?do=bt&v=1|0`。华为上 `enable()` 会弹确认框，做了三级兜底（直调 → 点确认框「允许」→ 下拉控制中心点蓝牙磁贴）
 - **v69** —— 新增实时投屏：MediaProjection 推 JPEG 流，浏览器里直接看手机画面（约 4 fps）
 - **v68** —— 新增「屏幕」页签：把手机当前界面 dump 成网页缩略图，点哪打哪，还能输入、按返回/桌面/任务/通知
 - **v67** —— 新增电量看护：USB 掉电立刻通知、≤8% 进入省电（亮度 12 + 采样减半）、≤5% 极限省电、回到 25% 自动复原
