@@ -40,6 +40,7 @@ public class ScreenCap {
     private static volatile int frames = 0;
     private static volatile String err = "";
     private static volatile boolean on = false;
+    private static volatile long lastEnc = 0;
 
     static int ow = 540, oh = 1200, odpi = 240;
 
@@ -95,6 +96,12 @@ public class ScreenCap {
                         return;
                     }
                     if (im == null) return;
+                    long nowMs = System.currentTimeMillis();
+                    if (nowMs - lastEnc < 160L) {
+                        try { im.close(); } catch (Throwable t) { }
+                        return;
+                    }
+                    lastEnc = nowMs;
                     try {
                         Image.Plane p = im.getPlanes()[0];
                         ByteBuffer buf = p.getBuffer();
