@@ -1,0 +1,43 @@
+v67  2026-11-02 21:53
+
+【新增】电量看护 PowerGuard —— 目标不是「关机后自己开机」，而是「别让它关机」
+
+背景
+  开机键坏了，从关机态起不来，只能「音量+ + 充电」并在屏幕上点一下。
+  关机状态跑不了任何 App 代码，bootloader 也不会自动 boot，
+  这一层在固件里，App / root / Device Owner 都够不着。
+  所以只剩一条路：把电量守住，别走到关机那一步。
+
+三档动作
+  ≤ 15%   提醒（不降耗）
+  ≤  8%   省电：亮度写死 12、流量采样间隔 x2
+  ≤  5%   极限：亮度 12、流量采样间隔 x4，热点照常不关
+
+  电量回到 25% 才复原（避免在阈值上来回抖）
+  USB 一断立刻高优先级通知 —— 这条最实用，插头松了马上知道
+
+代码
+  + PowerGuard.java      监听 ACTION_BATTERY_CHANGED，分级动作 + 通知
+  ~ Stats.java           lowPower 档位，sample() 的 STEP_MS 按档位放大
+  ~ PanelService.java    onCreate 里 PowerGuard.start()
+
+权限
+  亮度写 Settings.System 需要 WRITE_SETTINGS，装完跑一次：
+  adb shell appops set com.yg.autohotspot android:write_settings allow
+
+实测（用 dumpsys battery 模拟，不真掉电）
+  21:52:49  powerguard started, pct=95 plug=2
+  21:53:01  powerguard: USB 供电断了
+  21:53:07  powerguard: 电量 4%：极限省电
+  21:53:10  powerguard: recovered at 95%, was mode 2
+  21:53:11  powerguard: power back at 95%
+  21:53:30  powerguard: recovered at 95%, was mode 1
+  亮度实测：省电档 screen_brightness=12 / mode=0(手动)，复原后 mode=1(自动)
+
+沿革
+  v66  修开机自启被自家通知劫持（best()/score() 拒绝含「通知：」的节点）
+  v67  加电量看护三档
+
+一句话
+  「关机后充电自动开机」在 bootloader 层，App 够不着；
+  「有电就一直开机」现在有这三档兜底了。

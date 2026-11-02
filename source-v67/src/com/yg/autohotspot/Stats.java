@@ -25,11 +25,14 @@ public class Stats {
     private static long lastRx = -1;
     private static long lastTx = -1;
     private static long lastAt = 0;
+    /** v67 省电档：0 正常 / 1 采样间隔 x2 / 2 采样间隔 x4 */
+    private static int lowPower = 0;
 
     static synchronized void sample(Context c, long rx, long tx, int clients, boolean up) {
         try {
             long now = System.currentTimeMillis();
-            if (lastAt > 0 && now - lastAt < STEP_MS) return;
+            long step = STEP_MS * (lowPower >= 2 ? 4 : (lowPower >= 1 ? 2 : 1));
+            if (lastAt > 0 && now - lastAt < step) return;
 
             long drx = (lastRx >= 0 && rx >= lastRx) ? rx - lastRx : 0;
             long dtx = (lastTx >= 0 && tx >= lastTx) ? tx - lastTx : 0;
@@ -47,6 +50,11 @@ public class Stats {
     }
 
     /** 开机/重连后从文件最后一条恢复计时，避免把中间的空档算成一段流量 */
+    /** v67：由 PowerGuard 按电量设置，0 正常 / 1(x2) / 2(x4) */
+    static void setLowPower(int m) {
+        lowPower = m < 0 ? 0 : (m > 2 ? 2 : m);
+    }
+
     static synchronized void prime(Context c) {
         try {
             List<String> rows = read(c);

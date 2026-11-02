@@ -4,7 +4,7 @@
 
 不需要 root，不需要电脑常驻。手机自己跑一个 HTTP 服务（`192.168.43.1:8080`），连上热点的任何设备用浏览器就能打开控制台。
 
-> 当前版本：**v66**（versionCode 66）
+> 当前版本：**v67**（versionCode 67）
 > 实测机型：**华为 / 荣耀 TEL-AN00a（HONOR X10）**，Android 10 / EMUI 11
 
 ---
@@ -13,9 +13,9 @@
 
 | 文件 | 说明 |
 |---|---|
-| [**autohotspot-v66-source-20261102.zip**](../../raw/main/autohotspot-v66-source-20261102.zip) | 完整打包（源码 + APK + 构建脚本），163 KB，解压即用 |
-| [**apk/autohotspot-v66.apk**](apk/autohotspot-v66.apk) | 只要装到手机上，下这一个就行 |
-| [**source-v66/**](source-v66/) | 和 zip 内容相同的散文件，想在线看代码点这里 |
+| [**autohotspot-v67-source-20261102.zip**](../../raw/main/autohotspot-v67-source-20261102.zip) | 完整打包（源码 + APK + 构建脚本），168 KB，解压即用 |
+| [**apk/autohotspot-v67.apk**](apk/autohotspot-v67.apk) | 只要装到手机上，下这一个就行 |
+| [**source-v67/**](source-v67/) | 和 zip 内容相同的散文件，想在线看代码点这里 |
 
 > 所有文件都在本仓库里，随时可下，不依赖外部网盘。
 
@@ -105,7 +105,7 @@
 | 项 | 说明 |
 |---|---|
 | 安卓手机 | Android 8.0+（API 26），推荐华为/荣耀 |
-| APK | 本仓库 `apk/autohotspot-v66.apk` |
+| APK | 本仓库 `apk/autohotspot-v67.apk` |
 | 电脑 + 数据线 | **仅首次需要**，用来跑一条 adb 命令授予系统级权限 |
 | adb | [platform-tools](https://developer.android.com/studio/releases/platform-tools)，或用手机助手自带的 |
 
@@ -113,12 +113,12 @@
 
 **1. 安装 APK**
 
-把 `apk/autohotspot-v66.apk` 传到手机，点安装。系统会提示「未知来源」，允许即可。
+把 `apk/autohotspot-v67.apk` 传到手机，点安装。系统会提示「未知来源」，允许即可。
 
 或用 adb：
 
 ```bash
-adb install -r -t autohotspot-v66.apk
+adb install -r -t autohotspot-v67.apk
 ```
 
 > 华为/荣耀会弹「风险提示 → 继续安装」，点「继续安装」。
@@ -207,7 +207,7 @@ node chk58.js
 ```
 Autohotspot/
 ├── apk/
-│   └── autohotspot-v66.apk          已编译可安装包
+│   └── autohotspot-v67.apk          已编译可安装包
 ├── app/
 │   ├── AndroidManifest.xml
 │   ├── res/                          字符串、无障碍配置、设备管理员配置
@@ -234,7 +234,7 @@ Autohotspot/
 │   ├── chk58.js                      前端 JS 语法自检
 │   └── debug.keystore                测试签名（密码 android）
 └── docs/
-    └── 更新记录_v66.txt
+    └── 更新记录_v67.txt
 ```
 
 ---
@@ -253,6 +253,7 @@ Autohotspot/
 
 ## 七、版本
 
+- **v67** —— 新增电量看护：USB 掉电立刻通知、≤8% 进入省电（亮度 12 + 采样减半）、≤5% 极限省电、回到 25% 自动复原
 - **v66** —— 修开机自动开热点失效：accessibility 搜索会把自己那条常驻通知当成热点磁贴点掉（通知节点在 SystemUI 进程，包名过滤无效），改为按「通知：」文本特征排除
 - **v62** —— 设置页折叠分组、定时任务并入设置、页签「定时」→「分享」、WiFi 二维码
 - **v61** —— 测速改用系统 DownloadManager，解决第三方 App 被限速（0.5 Mbps → 100+ Mbps）

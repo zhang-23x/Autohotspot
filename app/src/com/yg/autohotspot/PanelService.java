@@ -193,6 +193,7 @@ public class PanelService extends Service {
         } catch (Throwable ignored) {
         }
         armWatchdog(getApplicationContext());
+        PowerGuard.start(getApplicationContext());
     }
 
     @Override
