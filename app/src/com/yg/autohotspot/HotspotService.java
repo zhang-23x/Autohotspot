@@ -198,6 +198,154 @@ public class HotspotService extends AccessibilityService {
 
     @Override public void onAccessibilityEvent(AccessibilityEvent event) { }
     @Override public void onInterrupt() { }
+    /* ================= v68 远程屏幕 ================= */
+    /* 把当前界面 dump 成精简 JSON；浏览器按路径点回来。 */
+
+    private static String nodeText(AccessibilityNodeInfo n) {
+        try {
+            CharSequence t = n.getText();
+            if (t != null && t.length() > 0) return t.toString();
+            CharSequence d = n.getContentDescription();
+            if (d != null && d.length() > 0) return d.toString();
+        } catch (Throwable ignored) { }
+        return "";
+    }
+
+    private static AccessibilityNodeInfo clickTarget(AccessibilityNodeInfo n) {
+        AccessibilityNodeInfo c = n;
+        for (int i = 0; i < 8 && c != null; i++) {
+            try { if (c.isClickable()) return c; } catch (Throwable ignored) { }
+            try { c = c.getParent(); } catch (Throwable ignored) { return null; }
+        }
+        return null;
+    }
+
+    static String dumpUi() {
+        HotspotService s = INSTANCE;
+        if (s == null) return "{\"ok\":false,\"msg\":\"无障碍服务未连接\"}";
+        AccessibilityNodeInfo root = null;
+        try { root = s.getRootInActiveWindow(); } catch (Throwable ignored) { }
+        if (root == null) return "{\"ok\":false,\"msg\":\"读不到界面（可能锁屏或正在刷新）\"}";
+        String pkg = "";
+        try { CharSequence p = root.getPackageName(); if (p != null) pkg = p.toString(); } catch (Throwable ignored) { }
+        StringBuilder out = new StringBuilder(8192);
+        int[] cnt = new int[]{0};
+        try { walkUi(root, "", out, cnt, 0); } catch (Throwable ignored) { }
+        try { root.recycle(); } catch (Throwable ignored) { }
+        return "{\"ok\":true,\"pkg\":" + jsStr(pkg) + ",\"n\":" + cnt[0] + ",\"list\":[" + out + "]}";
+    }
+
+    private static void walkUi(AccessibilityNodeInfo n, String path, StringBuilder out, int[] cnt, int depth) {
+        if (n == null || depth > 24 || cnt[0] >= 400) return;
+        int x = 0, y = 0, w = 0, h = 0;
+        try {
+            android.graphics.Rect r = new android.graphics.Rect();
+            n.getBoundsInScreen(r);
+            x = r.left; y = r.top; w = r.width(); h = r.height();
+        } catch (Throwable ignored) { }
+        int kids = 0;
+        try { kids = n.getChildCount(); } catch (Throwable ignored) { }
+        String txt = nodeText(n);
+        String cls = "";
+        try { CharSequence c = n.getClassName(); if (c != null) cls = c.toString(); } catch (Throwable ignored) { }
+        boolean editable = cls.contains("EditText");
+        boolean clickable = false;
+        try { clickable = clickTarget(n) != null; } catch (Throwable ignored) { }
+        if ((txt.length() > 0 || clickable || editable) && w > 0 && h > 0) {
+            if (cnt[0] > 0) out.append(',');
+            out.append("{\"p\":").append(jsStr(path))
+               .append(",\"t\":").append(jsStr(txt.length() > 60 ? txt.substring(0, 60) : txt))
+               .append(",\"c\":").append(clickable ? 1 : 0)
+               .append(",\"e\":").append(editable ? 1 : 0)
+               .append(",\"x\":").append(x).append(",\"y\":").append(y)
+               .append(",\"w\":").append(w).append(",\"h\":").append(h).append('}');
+            cnt[0]++;
+        }
+        for (int i = 0; i < kids; i++) {
+            AccessibilityNodeInfo k = null;
+            try { k = n.getChild(i); } catch (Throwable ignored) { }
+            if (k == null) continue;
+            try { walkUi(k, path.length() == 0 ? ("" + i) : (path + "/" + i), out, cnt, depth + 1); } catch (Throwable ignored) { }
+            try { k.recycle(); } catch (Throwable ignored) { }
+        }
+    }
+
+    private static AccessibilityNodeInfo nodeByPath(String path) {
+        HotspotService s = INSTANCE;
+        if (s == null || path == null || path.length() == 0) return null;
+        AccessibilityNodeInfo cur = null;
+        try { cur = s.getRootInActiveWindow(); } catch (Throwable ignored) { }
+        if (cur == null) return null;
+        String[] seg = path.split("/");
+        for (int i = 0; i < seg.length; i++) {
+            int idx;
+            try { idx = Integer.parseInt(seg[i].trim()); } catch (Throwable e) { try { cur.recycle(); } catch (Throwable ignored) { } return null; }
+            AccessibilityNodeInfo nx = null;
+            try { nx = cur.getChild(idx); } catch (Throwable ignored) { }
+            try { cur.recycle(); } catch (Throwable ignored) { }
+            if (nx == null) return null;
+            cur = nx;
+        }
+        return cur;
+    }
+
+    static boolean tapPath(String path) {
+        AccessibilityNodeInfo n = nodeByPath(path);
+        if (n == null) return false;
+        AccessibilityNodeInfo t = null;
+        try { t = clickTarget(n); } catch (Throwable ignored) { }
+        boolean ok = false;
+        if (t != null) {
+            HotspotService s = INSTANCE;
+            if (s != null) { try { ok = s.click(t); } catch (Throwable ignored) { } }
+            if (!ok) { try { ok = t.performAction(AccessibilityNodeInfo.ACTION_CLICK); } catch (Throwable ignored) { } }
+        }
+        try { if (t != null && t != n) t.recycle(); } catch (Throwable ignored) { }
+        try { n.recycle(); } catch (Throwable ignored) { }
+        return ok;
+    }
+
+    static boolean typePath(String path, String text) {
+        AccessibilityNodeInfo n = nodeByPath(path);
+        if (n == null) return false;
+        HotspotService s = INSTANCE;
+        boolean ok = false;
+        if (s != null) { try { ok = s.setText(n, text == null ? "" : text); } catch (Throwable ignored) { } }
+        try { n.recycle(); } catch (Throwable ignored) { }
+        return ok;
+    }
+
+    static boolean globalKey(String k) {
+        HotspotService s = INSTANCE;
+        if (s == null) return false;
+        int a = -1;
+        if ("back".equals(k)) a = GLOBAL_ACTION_BACK;
+        else if ("home".equals(k)) a = GLOBAL_ACTION_HOME;
+        else if ("recents".equals(k)) a = GLOBAL_ACTION_RECENTS;
+        else if ("notif".equals(k)) a = GLOBAL_ACTION_NOTIFICATIONS;
+        else if ("power".equals(k)) a = GLOBAL_ACTION_POWER_DIALOG;
+        if (a < 0) return false;
+        try { return s.performGlobalAction(a); } catch (Throwable ignored) { return false; }
+    }
+
+    private static String jsStr(String s) {
+        if (s == null) return "\"\"";
+        StringBuilder b = new StringBuilder(s.length() + 8);
+        b.append('"');
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '"') b.append("\\\"");
+            else if (c == '\\') b.append("\\\\");
+            else if (c == '\n') b.append("\\n");
+            else if (c == '\r') b.append("\\r");
+            else if (c == '\t') b.append("\\t");
+            else if (c < 0x20) b.append(String.format("\\u%04x", (int) c));
+            else b.append(c);
+        }
+        b.append('"');
+        return b.toString();
+    }
+
 
     // ---------------------------------------------------------------- job
 
