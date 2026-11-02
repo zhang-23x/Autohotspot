@@ -380,6 +380,8 @@ public class Panel {
         sb.append("\"notes\":").append(notesJson(c));
         sb.append(",\"block\":").append(blockJson(c));
         sb.append(",\"apSsid\":\"").append(esc(apSsid(c))).append("\",\"apPwd\":\"").append(esc(apPwd(c))).append("\"");
+        sb.append(",\"btOn\":").append(Bt.isOn()).append(",\"btName\":\"").append(esc(Bt.name())).append("\"");
+        sb.append(",\"btMsg\":\"").append(esc(Bt.lastMsg)).append("\"");
         sb.append("}");
         return sb.toString();
     }

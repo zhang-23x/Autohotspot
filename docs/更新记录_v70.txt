@@ -1,0 +1,51 @@
+================================================================
+v70  2026-11-02
+================================================================
+
+[新增] 面板总览页加蓝牙开关
+  - 位置：热点卡片下面一行（蓝色卡），左边「蓝牙 / 已开启·名字」，
+    右边一个「已开 / 已关」按钮，点一下切换
+  - 接口：/api/action?do=bt&v=1 开，v=0 关
+  - 状态：/api/status 里 cfg.btOn（布尔）、cfg.btName（本机蓝牙名）、
+    cfg.btMsg（最近一次操作的说明，面板上直接显示）
+  - 权限：BLUETOOTH + BLUETOOTH_ADMIN 两个普通权限，安装时自动授予，
+    不弹任何框（API 31 之后才需要 BLUETOOTH_CONNECT 运行时权限，
+    这台是 API 29，不涉及）
+
+[关键技术] 华为 EMUI 对蓝牙开关的三层拦截
+  1. BluetoothAdapter.enable() / disable() 会弹系统确认框：
+     「AutoHotspot 想要开启蓝牙。」+「拒绝」「允许」
+     （关闭时文案是「想要关闭蓝牙」）
+  2. 返回值不可靠：enable() 返回 true，disable() 返回 false，
+     两个都不代表最终结果，必须看 BluetoothAdapter.isEnabled()
+  3. 弹框期间点控制中心的蓝牙磁贴无效，因为弹框盖在上面
+
+[实现] 三级兜底（Bt.java + HotspotService.java）
+  第 1 级  直调 enable() / disable()
+  第 2 级  1.2 秒没变化 -> 无障碍找「允许」/「始终允许」/「确定」并点击
+           （HotspotService.btAllow / runBtAllow，700ms 后动手）
+  第 3 级  5.5 秒还没变化 -> HotspotService.btTile，下拉控制中心点蓝牙磁贴
+           （复用热点磁贴那套 swipeDown + findSmart + click）
+  第 4 级  都不成，Bt.lastMsg 写明失败原因，面板上能看到
+
+[实测] TEL-AN00a / Android 10 / EMUI 11
+  开蓝牙  {"ok":true,"msg":"蓝牙已开"}   2 秒内 settings bluetooth_on 变 1
+  关蓝牙  {"ok":true,"msg":"蓝牙已关"}   2 秒内 settings bluetooth_on 变 0
+  面板    总览页热点下面显示「蓝牙 / 已关闭」，按钮显示「已关」
+  权限    没有新增任何需要用户点的授权
+
+[文件]
+  新增  src/com/yg/autohotspot/Bt.java
+  改动  AndroidManifest.xml（+2 权限，versionCode 70 / versionName 70.0）
+  改动  src/com/yg/autohotspot/Panel.java（cfgJson 加 btOn / btName / btMsg）
+  改动  src/com/yg/autohotspot/HotspotService.java（btTile / runBt /
+        doBtClick / closeShade / btAllow / runBtAllow）
+  改动  src/com/yg/autohotspot/PhoneServer.java（do=bt 分支 + 前端卡片 +
+        toggleBt + render 更新）
+
+[补丁脚本]
+  patch70.js   manifest 权限 + 版本号 + Panel btOn/btName + do=bt 骨架 + 前端卡片
+  patch70b.js  Bt.set 改三级兜底 + HotspotService 磁贴逻辑 + Panel btMsg
+  patch70c.js  HotspotService.btAllow + Bt.set 里 enable 后点确认框
+  （最后一处手工修：Bt.set 去掉 if (r) 判断，因为 disable() 返回 false
+    但确认框照样会弹）

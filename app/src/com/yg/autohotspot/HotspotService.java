@@ -758,6 +758,107 @@ public class HotspotService extends AccessibilityService {
         panelOpened = false;
     }
 
+    // ===== v70 蓝牙：走控制中心磁贴 =====
+    private volatile boolean btBusy = false;
+
+    static void btTile(boolean want) {
+        HotspotService s = INSTANCE;
+        if (s == null || s.h == null) throw new IllegalStateException("no service");
+        s.runBt(want);
+    }
+
+    private void runBt(final boolean want) {
+        if (btBusy) return;
+        btBusy = true;
+        Bt.lastMsg = "下拉控制中心…";
+        wakeScreen();
+        h.postDelayed(new Runnable() {
+            public void run() {
+                try { swipeDown(); } catch (Throwable t) { }
+                h.postDelayed(new Runnable() {
+                    public void run() { doBtClick(want); }
+                }, 1300L);
+            }
+        }, 500L);
+    }
+
+    private void doBtClick(boolean want) {
+        AccessibilityNodeInfo n = null;
+        try { n = findSmart(UiFinder.T_TILE, new String[]{"蓝牙", "Bluetooth"}); } catch (Throwable t) { }
+        if (n == null) {
+            Bt.lastMsg = "控制中心里没找到蓝牙磁贴";
+            closeShade();
+            btBusy = false;
+            return;
+        }
+        String ts = nodeText(n);
+        CharSequence cd = null;
+        try { cd = n.getContentDescription(); } catch (Throwable t) { }
+        Log.i(TAG, "bt tile: [" + ts + "] cd=[" + (cd == null ? "" : cd.toString()) + "] want=" + want);
+        boolean cur = Bt.isOn();
+        if (cur == want) {
+            Bt.lastMsg = "蓝牙已经是" + (want ? "开" : "关") + "的";
+            closeShade();
+            btBusy = false;
+            return;
+        }
+        try { click(n); } catch (Throwable t) { }
+        Bt.lastMsg = "点了蓝牙磁贴，等结果…";
+        h.postDelayed(new Runnable() {
+            public void run() {
+                closeShade();
+                btBusy = false;
+                Bt.lastMsg = (Bt.isOn() == want)
+                        ? ("蓝牙已" + (want ? "开" : "关"))
+                        : "点了磁贴但状态没变";
+                Log.i(TAG, "bt done: " + Bt.lastMsg);
+            }
+        }, 2600L);
+    }
+
+    // ===== v70c 蓝牙：点掉 EMUI 的「想要开启蓝牙」确认框 =====
+    private volatile boolean btAllowBusy = false;
+
+    static void btAllow() {
+        HotspotService s = INSTANCE;
+        if (s == null || s.h == null) return;
+        s.runBtAllow();
+    }
+
+    private void runBtAllow() {
+        if (btAllowBusy) return;
+        btAllowBusy = true;
+        h.postDelayed(new Runnable() {
+            public void run() {
+                try {
+                    AccessibilityNodeInfo root = getRootInActiveWindow();
+                    if (root == null) {
+                        Bt.lastMsg = "看不到确认框";
+                    } else {
+                        AccessibilityNodeInfo n = find("允许");
+                        if (n == null) n = find("始终允许");
+                        if (n == null) n = find("确定");
+                        if (n != null) {
+                            click(n);
+                            Bt.lastMsg = "已点确认框的「允许」";
+                            Log.i(TAG + ":bt", "allow tapped");
+                        } else {
+                            Bt.lastMsg = "确认框里没找到「允许」";
+                        }
+                    }
+                } catch (Throwable t) {
+                    Bt.lastMsg = "点确认框出错: " + t.getClass().getSimpleName();
+                }
+                btAllowBusy = false;
+            }
+        }, 700L);
+    }
+
+    private void closeShade() {
+        try { performGlobalAction(GLOBAL_ACTION_BACK); } catch (Throwable t) { }
+        releaseWake();
+    }
+
     private void finish(boolean success) {
         running = false;
         offMode = false;
