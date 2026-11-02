@@ -468,6 +468,7 @@ public class PhoneServer {
         }
 
         String body;
+        byte[] raw = null;
         String type = "application/json; charset=utf-8";
         String extra = "";
         String token = tokenOf(head.toString(), path);
@@ -594,6 +595,29 @@ public class PhoneServer {
             String k = param(queryOf(path), "k");
             boolean ok = HotspotService.globalKey(k);
             body = ok ? "{\"ok\":true,\"msg\":\"已执行\"}" : "{\"ok\":false,\"msg\":\"不支持的按键\"}";
+        } else if (path.startsWith("/api/screen/on")) {
+            ScreenCap.request(ctx);
+            body = "{\"ok\":true,\"msg\":\"已请求授权：去「屏幕」页点掉系统弹窗里的开始按钮\"}";
+        } else if (path.startsWith("/api/screen/off")) {
+            ScreenCap.stop();
+            MirrorService.stop(ctx);
+            body = "{\"ok\":true,\"msg\":\"已停止镜像\"}";
+        } else if (path.startsWith("/api/screen/meta")) {
+            body = "{\"ok\":" + ScreenCap.isOn()
+                    + ",\"frames\":" + ScreenCap.frames()
+                    + ",\"ts\":" + ScreenCap.ts()
+                    + ",\"w\":" + ScreenCap.w()
+                    + ",\"h\":" + ScreenCap.h()
+                    + ",\"err\":\"" + esc(ScreenCap.error()) + "\"}";
+        } else if (path.startsWith("/api/screen")) {
+            byte[] jp = ScreenCap.jpeg();
+            if (jp == null) {
+                body = "{\"ok\":false,\"msg\":\"还没有画面，先点开始镜像\"}";
+            } else {
+                raw = jp;
+                type = "image/jpeg";
+                body = "";
+            }
         } else if (path.startsWith("/api/ui")) {
             body = HotspotService.dumpUi();
         } else if (path.startsWith("/api/status")) {
@@ -603,7 +627,7 @@ public class PhoneServer {
             type = "text/html; charset=utf-8";
         }
 
-        byte[] b = body.getBytes("UTF-8");
+        byte[] b = (raw != null) ? raw : body.getBytes("UTF-8");
         OutputStream os = c.getOutputStream();
         PrintWriter pw = new PrintWriter(os);
         pw.print("HTTP/1.1 200 OK\r\n");
@@ -1272,6 +1296,9 @@ public class PhoneServer {
         + "<div id='scrwrap' onclick='uiHit(event)' style='position:relative;background:#f7f8fa;border:1px solid var(--line);border-radius:10px;overflow:hidden;touch-action:manipulation'><div id='scrbox' style='position:relative'></div></div>"
         + "<div style='display:flex;gap:6px;margin-top:8px'><button class='bs' style='flex:1' onclick='uiKey(&quot;back&quot;)'>返回</button><button class='bs' style='flex:1' onclick='uiKey(&quot;home&quot;)'>桌面</button><button class='bs' style='flex:1' onclick='uiKey(&quot;recents&quot;)'>任务</button><button class='bs' style='flex:1' onclick='uiKey(&quot;notif&quot;)'>通知</button></div>"
         + "<div class='hint' id='scrmsg'>点界面上的方块＝点手机上那个位置。虚线框是输入框，点它会弹输入。</div>"
+        + "<div style='display:flex;gap:8px;margin-top:10px'><button class='bs' style='flex:1' onclick='mirOn()'>开始投屏</button><button class='bs' style='flex:1' onclick='mirOff()'>停止</button></div>"
+        + "<img id='mir' style='width:100%;border-radius:10px;margin-top:8px;display:none' alt=''/>"
+        + "<div class='hint' id='mirmsg'>投屏要先在系统弹窗点一次「允许」，重启后要再点一次。弹窗能用上面这块点掉。</div>"
         + "</div></div>"
         + "<div class='pane on' id='ov'><div class='warn' id='warn' style='display:none'></div><div class='card'><div class='hero' id='hero'><div class='ring'>📶</div><div><div class='label'>个人热点</div><div class='value big' id='hs'>—</div><div class='hint' id='hsh'>—</div></div></div></div><div class='grid'><div class='card'><div class='label'>电池</div><div class='value'><span id='b'>—</span><span class='u'>%</span></div><div class='bar'><i id='bb'></i></div><div class='hint' id='bh'>—</div></div><div class='card'><div class='label'>电池温度</div><div class='value'><span id='t'>—</span><span class='u'>°C</span></div><div class='hint' id='th'>—</div></div><div class='card'><div class='label'>访问设备</div><div class='value'><span id='c'>—</span><span class='u'>台</span></div><div class='hint' id='ch'>—</div></div><div class='card'><div class='label'>内存</div><div class='valu"
         + "e'><span id='m'>—</span><span class='u'>%</span></div><div class='bar'><i id='mb'></i></div><div class='hint' id='mh'>—</div></div></div><div class='grid'><div class='card'><div class='label'>移动网络</div><div class='value' id='nt' style='font-size:14px'>—</div><div class='hint' id='op'>—</div><div class='row' id='simrow' style='display:none;margin-top:7px'><button class='bs' id='sim1' onclick='pickSim(1)'>卡1</button><button class='bs' id='sim2' onclick='pickSim(2)'>卡2</button></div></div><div class='card'><div class='label'>实时速率</div><div class='value' id='rate' style='font-size:12.5px'>—</div><div class='hint' id='rh'>下行 / 上行</div></div></div><div class='card'><div class='label'>运行时长</div><div class='value' id='up' style='font-size:16px'>—</div><div class='hint'>累计流量 ↓<span id='rx'>—</span> ↑<span id='tx'>—</span></div></div><div class='card' id='lc' style='display:none'><div class='label'>本月流量</div><div class='value' style='font-size:16px'><span id='mu'>—</span><span class='u'>/ <span id='lm'>—</span></span></div><div class='bar'><i id='lb'></i></div><div class='hint' id='lh'>"
@@ -1440,6 +1467,11 @@ public class PhoneServer {
         + "function uiType(p,t){fetch('/api/uitype?p='+encodeURIComponent(p)+'&t='+encodeURIComponent(t)).then(function(r){return r.json()}).then(function(a){toast((a.ok?'✅ ':'⚠️ ')+a.msg);setTimeout(refreshUi,700)}).catch(function(e){toast('失败: '+e.message)})}"
         + "function uiKey(k){fetch('/api/uikey?k='+k).then(function(r){return r.json()}).then(function(a){toast((a.ok?'✅ ':'⚠️ ')+a.msg);setTimeout(refreshUi,700)}).catch(function(e){toast('失败: '+e.message)})}"
         + "function uiHit(ev){if(!UILIST.length)return;var w=$('scrwrap');if(!w)return;var r=w.getBoundingClientRect();var sx=(ev.clientX-r.left)/UIK,sy=(ev.clientY-r.top)/UIK;var bi=-1,ba=0;for(var i=0;i<UILIST.length;i++){var n=UILIST[i];if(!n.c&&!n.e)continue;if(sx>=n.x&&sx<=n.x+n.w&&sy>=n.y&&sy<=n.y+n.h){var a=n.w*n.h;if(bi<0||a<ba){bi=i;ba=a}}}if(bi<0){toast('这个位置没有可点的东西');return}var nd=UILIST[bi];if(nd.e){var t=prompt('输入内容：',nd.t||'');if(t===null)return;uiType(nd.p,t);return}uiTap(nd.p)}"
+        + "var MIRT=null,MIRON=false;"
+        + "function mirOn(){fetch('/api/screen/on').then(function(r){return r.json()}).then(function(a){toast(a.msg);setTimeout(mirMeta,1600)}).catch(function(e){toast('失败: '+e.message)})}"
+        + "function mirOff(){MIRON=false;if(MIRT){clearTimeout(MIRT);MIRT=null}var im=$('mir');if(im)im.style.display='none';fetch('/api/screen/off').then(function(r){return r.json()}).then(function(a){toast(a.msg)}).catch(function(){})}"
+        + "function mirMeta(){fetch('/api/screen/meta',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var m=$('mirmsg'),im=$('mir');if(d.ok){if(im)im.style.display='block';MIRON=true;if(m)m.textContent='镜像中 '+d.w+'x'+d.h+' · 已 '+d.frames+' 帧 · '+(d.ts?new Date(d.ts).toLocaleTimeString('zh-CN'):'');mirTick()}else{MIRON=false;if(im)im.style.display='none';if(m)m.textContent='未开启'+(d.err?('（'+d.err+'）'):'');if(d.err)setTimeout(mirMeta,1500)}}).catch(function(){})}"
+        + "function mirTick(){if(!MIRON)return;var im=$('mir');if(im)im.src='/api/screen?t='+Date.now();MIRT=setTimeout(mirTick,250)}"
         + "function refresh(){fetch('/api/status',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){if(d.needLogin){location.href='/';return}CUR=d;render(d);}).catch(function(e){$('sub').textContent='读取失败: '+e.message})}function render(d){var ts=tabset;if(ts)ts.textContent=(d.cfg&&d.cfg.hasPass&&!UNLOCKED)?'设置 🔒':'设置';try{drawBlock()}catch(e){}try{var q1=document.getElementById('shs'),q2=document.getElementById('shp');if(q1&&d.cfg){q1.textContent=d.cfg.apSsid||'(未读到)';q2.textContent=d.cfg.apPwd||'(未读到)';if(TAB==='share'&&(window._qs!==q1.textContent||window._qp!==q2.textContent)){window._qs=q1.textContent;window._qp=q2.textContent;drawQr(d.cfg.apSsid||'',d.cfg.apPwd||'')}}}catch(e){}var up=d.hotspot.up;$('sub').textContent='手机本机提供 · '+new Date(d.ts).toLocaleTimeString('zh-CN');if(d.cfg&&d.cfg.theme)applyTheme(d.cfg.theme);$('hero').className='hero '+(up?'up':'');$('hs').textContent=up?'运行中':'已关闭';$('hs').style.color=up?'':'var(--red)';$('hsh').textContent='AP '+(d.hotspot.ip||'—')+' · '+(up?'hostapd 运行中':'未监听');$('b').textContent=d.battery.level>=0?d.battery.level:'—';$('bb').style.width=(d.battery.level>0?d.battery.level:0)+'%';$('bh').textContent=(d.battery.charging?'⚡ 充电中':'未充电')+(d.battery.usbPowered?' · USB 供电':'');$('t').textContent=d.battery.temp>=0?d.battery.temp:'—';$('th').textContent='电池 · 内核热状态 '+t"
         + "hermalText(d.battery.thermalStatus);$('c').textContent=d.hotspot.clients;$('ch').textContent=(d.cfg.maxClients>0?'上限 '+d.cfg.maxClients+' 台':'在线设备')+(d.hotspot.clientsKnown>d.hotspot.clients?' · '+(d.hotspot.clientsKnown-d.hotspot.clients)+' 台已断开':'');$('m').textContent=d.system.memPct;$('mb').style.width=d.system.memPct+'%';$('mh').textContent='共 '+d.system.memTotalMB+' MB · 可用 '+d.system.memAvailMB+' MB';var nw=d.net||{};$('nt').textContent=nw.netType||'—';$('op').textContent=nw.operator||'未取到运营商';drawSim();$('rate').textContent='↓ '+fsp(nw.rxRate)+'  ↑ '+fsp(nw.txRate);var sb=$('sup');if(sb&&!SPEEDING)sb.textContent=fsp(nw.txRate);$('rh').textContent=(d.hotspot.ssid?'SSID '+d.hotspot.ssid:'下行 / 上行');$('up').textContent=fu(d.system.uptimeSec);$('rx').textContent=fb(d.traffic.rxBytes);$('tx').textContent=fb(d.traffic.txBytes);$('aph').textContent=(d.ap.busy?'⏳ ':'')+d.ap.msg;$('aph').style.color=d.ap.busy?'#f5a524':(d.ap.msg.indexOf('已提交')>=0?'var(--accent)':'var(--dim)');$('pwh').textContent=d.cfg.hasPass?'已设置：打开页面需要密码':'未设置：同网段谁都能打开';$('lmh').textContent=d.cfg."
         + "limitMB>0?('本月已用 '+fb(d.cfg.monthBytes)+' / '+d.cfg.limitMB+' MB'):'未设限额';$('lim').placeholder=d.cfg.limitMB>0?('当前 '+d.cfg.limitMB+' MB'):'例如 10240（MB）';$('maxc').placeholder=d.cfg.maxClients>0?('当前 '+d.cfg.maxClients+' 台'):'例如 5';$('maxd').checked=!!d.cfg.maxDrop;$('mxh').textContent=d.cfg.maxClients>0?('上限 '+d.cfg.maxClients+' 台'+(d.cfg.maxDrop?' · 超限自动断网':' · 只提醒')):'未设上限';var lc=$('lc');if(d.cfg.limitMB>0){lc.style.display='';$('mu').textContent=fb(d.cfg.monthBytes);$('lm').textContent=d.cfg.limitMB+' MB';var pc=Math.min(100,d.cfg.monthBytes*100/(d.cfg.limitMB*1048576));$('lb').style.width=pc+'%';$('lb').style.background=d.limitHit?'var(--red)':'';$('lh').textContent=pc.toFixed(1)+'% · '+(d.limitHit?'已超限':'还差 '+fb(Math.max(0,d.cfg.limitMB*1048576-d.cfg.monthBytes)))}else lc.style.display='none';var w=$('warn'),ws=[];if(d.limitHit)ws.push('本月流量已达 '+fb(d.cfg.monthBytes)+'，超过设定的 '+d.cf"
